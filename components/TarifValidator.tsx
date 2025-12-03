@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Upload, FileUp, AlertTriangle, CheckCircle2, Download, Eye, X, Table as TableIcon, History, RotateCcw, Trash2, HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ValidationResult, ValidationMismatch, FullValidationRow, ValidationDetail, ValidationHistoryItem, ValidationCategory } from '../types';
@@ -109,7 +108,9 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     }
     
     const data = rowsToDownload || result.fullReport;
-    let header = '';
+    
+    // Explicit types to fix TS7034/TS7005
+    let header: string = '';
     let rows: string[] = [];
 
     const esc = (val: any) => {
@@ -160,7 +161,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     window.URL.revokeObjectURL(url);
   };
 
-  const CHUNK_SIZE = 1024 * 1024 * 5; 
+  const CHUNK_SIZE = 1024 * 1024 * 5; // 5MB Chunk
 
   const parseLine = (line: string, delimiter: string) => {
     const result: string[] = [];
@@ -267,7 +268,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
         await processFileChunked(
             fileMaster,
             () => {}, 
-            (rows) => {
+            (rows: any[]) => { // Explicit type
                 if (category === 'BIAYA') {
                     const keys = Object.keys(rows[0] || {});
                     const destKey = keys.find(k => k.toUpperCase().includes('DEST')) || 'DESTINASI';
@@ -318,7 +319,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
 
         await processFileChunked(
             fileIT,
-            (headers) => {
+            (headers: string[]) => { // Explicit type
                  if (category === 'BIAYA') {
                      const hasDest = headers.some(h => h.toUpperCase().includes('DEST'));
                      const hasServ = headers.some(h => h.toUpperCase().includes('SERVICE'));
@@ -328,7 +329,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                      if (!hasSys) throw new Error("File IT harus memiliki kolom SYS_CODE");
                  }
             },
-            (rows) => {
+            (rows: any[]) => { // Explicit type
                 rows.forEach((itRow) => {
                     rowIndexGlobal++;
                     const rowIndex = rowIndexGlobal;
@@ -409,9 +410,15 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                          fullReport.push(reportRow);
 
                     } else {
+                        // TARIF LOGIC
                         const keys = Object.keys(itRow);
                         const sysKey = keys.find(k => k.trim().replace(/_/g, '').toUpperCase() === 'SYSCODE');
-                        const sysCode = String(itRow[sysKey!] || '').trim().toUpperCase();
+                        
+                        const sysCode = sysKey ? String(itRow[sysKey] || '').trim().toUpperCase() : '';
+
+                        if (!sysCode) {
+                            return; 
+                        }
 
                         const masterRow = masterMap.get(sysCode);
                         
@@ -503,6 +510,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
         };
         setResult(validationResult);
 
+        // --- SAFE HISTORY STORAGE ---
         const isTooLarge = fullReport.length > 5000;
         
         const historyItem: ValidationHistoryItem = {
@@ -512,6 +520,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
             fileNameMaster: fileMaster.name,
             result: {
                 ...validationResult,
+                // If large, DO NOT store arrays to prevent LocalStorage Quota Exceeded
                 fullReport: isTooLarge ? [] : fullReport, 
                 mismatches: isTooLarge ? [] : mismatches 
             },
